@@ -4,6 +4,8 @@
 #include <math.h>
 using namespace std;
 
+// g++ -Wextra -Wall -Wvla -std=c++11 -lm osm.cpp -o osm_ex1
+
 // ---consts and defines---
 #define ERROR -1
 #define ADD_INSTRUCTION 1
@@ -29,7 +31,8 @@ double osm_operation_time(unsigned int iterations) {
 
     gettimeofday(&before, NULL);
     unsigned int x;
-    for (unsigned int i = 0; i < iterations; i += 1) {
+    x = 0;
+    for (unsigned int i = 0; i < iterations / UNROLLING_COEFF; i += 1) {
         x = 1 + 1;
         x = 1 + 1;
         x = 1 + 1;
@@ -59,7 +62,7 @@ double osm_function_time(unsigned int iterations) {
     double timeSec, timeMicro;
 
     gettimeofday(&before, NULL);
-    for (unsigned int i = 0; i < iterations; i++) {
+    for (unsigned int i = 0; i < iterations / UNROLLING_COEFF; i++) {
         emptyFunc();
         emptyFunc();
         emptyFunc();
@@ -89,7 +92,7 @@ double osm_syscall_time(unsigned int iterations) {
     double timeSec, timeMicro;
 
     gettimeofday(&before, NULL);
-    for (unsigned int i = 0; i < iterations; i += 1) {
+    for (unsigned int i = 0; i < iterations / UNROLLING_COEFF; i++) {
         OSM_NULLSYSCALL;
         OSM_NULLSYSCALL;
         OSM_NULLSYSCALL;
@@ -116,5 +119,5 @@ int main(int argc, char *argv[])
 
 
 
-    return EXIT_SUCCESS;
+    return 0;
 }

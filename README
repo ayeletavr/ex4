@@ -1,0 +1,22 @@
+roy.shtoyerman, ayeletavr
+Roy Shtoyerman (318903713), Ayelet Avraham (313451932)
+EX: 1
+
+FILES:
+README -- This file. Includes answer to part 1.
+osm.cpp -- Code uses to measure time for simple operations.
+Times.png --- Graph that shows time measurements for simple operations.
+Makefile --  makefile.
+
+REMARKS:
+
+ANSWERS:
+
+Q1:
+When the program executes, first it creates a directory Welcome/To/OS2021, afterwards the command openat
+creates and opens a file in the specified directory. Next fstat get the file's status, and the next command, write,
+writes the following text:
+<username>
+If you haven't read the course guidelines yet --- do it right now!
+<input argument>
+afterwards it closes the file, removes its directory and exits with 0.
