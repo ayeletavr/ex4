@@ -13,62 +13,36 @@ const unsigned int UNROLLING_COEFF = 5;
 
 void emptyFunc() {}
 
-static double timeMeasurement(unsigned int operation, unsigned int iterations) {
-    /** Time measurement test for one of three operations (addition instruction, empty function or
-     * a trap.
-     */
-     if (iterations == 0) {
-         return ERROR;
-     }
-
-     timeval before, after;
-     double time_measured, time_per_iter;
-
-     if (operation == ADD_INSTRUCTION) {
-         gettimeofday(&before, NULL);
-         unsigned int x;
-         x = 0;
-         for (unsigned int i = 0; i < iterations; i += 1) {
-             x += 1;
-             x += 1;
-             x += 1;
-             x += 1;
-             x += 1;
-         }
-         gettimeofday(&after, NULL);
-     }
-
-     if (operation == EMPTY_FUNC) {
-         gettimeofday(&before, NULL);
-         for (unsigned int i = 0; i < iterations; i += 1) {
-             emptyFunc();
-             emptyFunc();
-             emptyFunc();
-             emptyFunc();
-             emptyFunc();
-         }
-     }
-
-     if (operation == TRAP) {
-         OSM_NULLSYSCALL;
-         OSM_NULLSYSCALL;
-         OSM_NULLSYSCALL;
-         OSM_NULLSYSCALL;
-         OSM_NULLSYSCALL;
-     }
-
-     time_measured = ((after.tv_sec - before.tv_sec) / UNROLLING_COEFF);
-//     time_per_iter = time_measured / iterations;
-     return time_measured;
-
-}
 
 double osm_operation_time(unsigned int iterations) {
     /** Time measurement function for a simple arithmetic operation.
    returns time in nano-seconds upon success,
    and -1 upon failure.
    */
-   return timeMeasurement(ADD_INSTRUCTION, iterations);
+    if (iterations == 0) {
+        return ERROR;
+    }
+
+    timeval before, after;
+
+    double timeSec, timeMicro;
+
+    gettimeofday(&before, NULL);
+    unsigned int x;
+    for (unsigned int i = 0; i < iterations; i += 1) {
+        x = 1 + 1;
+        x = 1 + 1;
+        x = 1 + 1;
+        x = 1 + 1;
+        x = 1 + 1;
+    }
+    gettimeofday(&after, NULL);
+
+    timeSec = (double) after.tv_sec - before.tv_sec;
+    timeMicro = (double) after.tv_usec - before.tv_usec;
+
+    return ((timeSec * 1000000 + timeMicro) * 1e3) / iterations;
+
 }
 
 double osm_function_time(unsigned int iterations) {
@@ -76,7 +50,29 @@ double osm_function_time(unsigned int iterations) {
    returns time in nano-seconds upon success,
    and -1 upon failure.
    */
-    return timeMeasurement(EMPTY_FUNC, iterations);
+    if (iterations == 0) {
+        return ERROR;
+    }
+
+    timeval before, after;
+
+    double timeSec, timeMicro;
+
+    gettimeofday(&before, NULL);
+    for (unsigned int i = 0; i < iterations; i++) {
+        emptyFunc();
+        emptyFunc();
+        emptyFunc();
+        emptyFunc();
+        emptyFunc();
+    }
+    gettimeofday(&after, NULL);
+
+
+    timeSec = (double) after.tv_sec - before.tv_sec;
+    timeMicro = (double) after.tv_usec - before.tv_usec;
+
+    return ((timeSec * 1000000 + timeMicro) * 1e3) / iterations;
 }
 
 double osm_syscall_time(unsigned int iterations) {
@@ -84,40 +80,40 @@ double osm_syscall_time(unsigned int iterations) {
    returns time in nano-seconds upon success,
    and -1 upon failure.
    */
-    return timeMeasurement(TRAP, iterations);
+    if (iterations == 0) {
+        return ERROR;
+    }
+
+    timeval before, after;
+
+    double timeSec, timeMicro;
+
+    gettimeofday(&before, NULL);
+    for (unsigned int i = 0; i < iterations; i += 1) {
+        OSM_NULLSYSCALL;
+        OSM_NULLSYSCALL;
+        OSM_NULLSYSCALL;
+        OSM_NULLSYSCALL;
+        OSM_NULLSYSCALL;
+    }
+    gettimeofday(&after, NULL);
+
+    timeSec = (double) after.tv_sec - before.tv_sec;
+    timeMicro = (double) after.tv_usec - before.tv_usec;
+
+    return ((timeSec * 1000000 + timeMicro) * 1e3) / iterations;
 }
 
-double time_per_iteration(double time, unsigned int iterations) {
-    return time / iterations;
-}
 
 int main(int argc, char *argv[])
 {
     int iterations;
-    int counter = 10;
 
-    for (int i = 0; i < 5; i++) {
-        cout<< "Enter num of iterations: \n";
-        cin >> iterations;
-        cout << "iterations: " << iterations << "\n";
-        cout << "addition: " << osm_operation_time(iterations) << "\n"
-             << "function: " << osm_function_time(iterations) << "\n" <<
-             "trap: " << osm_syscall_time(iterations) << "\n";
+    iterations = 100000;
+    cout << "function: " << osm_function_time(iterations) << "\n"
+    << "addition: " << osm_operation_time(iterations) << "\n" <<
+    "trap: " << osm_syscall_time(iterations) << "\n";
 
-        cout << "addition per iter: " << time_per_iteration(osm_operation_time(iterations) ,iterations) << "\n"
-             << "function per iter: " << time_per_iteration(osm_function_time(iterations), iterations) << "\n" <<
-             "trap per iter: " << time_per_iteration(osm_syscall_time(iterations), iterations) << "\n";
-    }
-
-//    cout<< "Enter num of iterations: \n";
-//    cin >> iterations;
-//    cout << "addition: " << osm_operation_time(iterations) << "\n"
-//    << "function: " << osm_function_time(iterations) << "\n" <<
-//    "trap: " << osm_syscall_time(iterations) << "\n";
-//
-//    cout << "addition per iter: " << time_per_iteration(osm_operation_time(iterations) ,iterations) << "\n"
-//         << "function per iter: " << time_per_iteration(osm_function_time(iterations), iterations) << "\n" <<
-//         "trap per iter: " << time_per_iteration(osm_syscall_time(iterations), iterations) << "\n";
 
 
     return EXIT_SUCCESS;
