@@ -1,6 +1,7 @@
 #include "osm.h"
 #include <iostream>
 #include <sys/time.h>
+#include <math.h>
 using namespace std;
 
 // ---consts and defines---
@@ -56,9 +57,9 @@ static double timeMeasurement(unsigned int operation, unsigned int iterations) {
          OSM_NULLSYSCALL;
      }
 
-     time_measured = ((after.tv_sec - before.tv_sec) / UNROLLING_COEFF) * 10 ^ -6;
-     time_per_iter = time_measured / iterations;
-     return time_per_iter;
+     time_measured = ((after.tv_sec - before.tv_sec) / UNROLLING_COEFF);
+//     time_per_iter = time_measured / iterations;
+     return time_measured;
 
 }
 
@@ -86,15 +87,38 @@ double osm_syscall_time(unsigned int iterations) {
     return timeMeasurement(TRAP, iterations);
 }
 
+double time_per_iteration(double time, unsigned int iterations) {
+    return time / iterations;
+}
+
 int main(int argc, char *argv[])
 {
     int iterations;
+    int counter = 10;
 
-    cout<< "Enter num of iterations: \n";
-    cin >> iterations;
-    cout << "addition: " << osm_operation_time(iterations) << "\n"
-    << "function: " << osm_function_time(iterations) << "\n" <<
-    "trap: " << osm_syscall_time(iterations) << "\n";
+    for (int i = 0; i < 5; i++) {
+        cout<< "Enter num of iterations: \n";
+        cin >> iterations;
+        cout << "iterations: " << iterations << "\n";
+        cout << "addition: " << osm_operation_time(iterations) << "\n"
+             << "function: " << osm_function_time(iterations) << "\n" <<
+             "trap: " << osm_syscall_time(iterations) << "\n";
+
+        cout << "addition per iter: " << time_per_iteration(osm_operation_time(iterations) ,iterations) << "\n"
+             << "function per iter: " << time_per_iteration(osm_function_time(iterations), iterations) << "\n" <<
+             "trap per iter: " << time_per_iteration(osm_syscall_time(iterations), iterations) << "\n";
+    }
+
+//    cout<< "Enter num of iterations: \n";
+//    cin >> iterations;
+//    cout << "addition: " << osm_operation_time(iterations) << "\n"
+//    << "function: " << osm_function_time(iterations) << "\n" <<
+//    "trap: " << osm_syscall_time(iterations) << "\n";
+//
+//    cout << "addition per iter: " << time_per_iteration(osm_operation_time(iterations) ,iterations) << "\n"
+//         << "function per iter: " << time_per_iteration(osm_function_time(iterations), iterations) << "\n" <<
+//         "trap per iter: " << time_per_iteration(osm_syscall_time(iterations), iterations) << "\n";
+
 
     return EXIT_SUCCESS;
 }
