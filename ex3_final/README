@@ -1,0 +1,13 @@
+roy.shtoyerman, ayeletavr
+Roy Shtoyerman (318903713), Ayelet Avraham (313451932)
+EX: 3
+
+FILES:
+Barrier/barrier.cpp - A barrier for general use
+MapReduceFramework.cpp - Framework of the map reduce
+Makefile - to create the library
+README - to waste time
+
+REMARKS:
+This exercise was, again, pure suffer.
+We used the 64-uint trick.
