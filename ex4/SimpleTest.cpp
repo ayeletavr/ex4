@@ -3,6 +3,8 @@
 #include <cstdio>
 #include <cassert>
 
+#include <iostream>
+
 int main(int argc, char **argv) {
     VMinitialize();
     for (uint64_t i = 0; i < (2 * NUM_FRAMES); ++i) {
@@ -13,7 +15,9 @@ int main(int argc, char **argv) {
     for (uint64_t i = 0; i < (2 * NUM_FRAMES); ++i) {
         word_t value;
         VMread(5 * i * PAGE_SIZE, &value);
+        std::cout << "val: " << value << " i: " << i << std::endl;
         printf("reading from %llu %d\n", (long long int) i, value);
+        std::cout << "val: " << value << " i: " << i << std::endl;
         assert(uint64_t(value) == i);
     }
     printf("success\n");
