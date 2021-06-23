@@ -7,7 +7,7 @@
 typedef struct AllInfo
 {
     uint64_t maximumFrameVisited;
-    uint64_t currentlyVisitedSon; // TBD
+//    uint64_t currentlyVisitedSon; // TBD
     uint64_t currentPrev;
     uint64_t offSet;
     uint64_t pageNumber; //TBD
@@ -16,54 +16,26 @@ typedef struct AllInfo
     uint64_t currentPage;
     uint64_t oldDist;
 
-
-
     uint64_t frameToReadWrite;
     word_t *value; // TBD
-    bool toWrite; // TBD
 
     word_t *currFrame;
     word_t *frameToEvict;
     word_t *pageToEvict;
     word_t *emptyFrame;
     word_t *emptyAddr;
-
-    bool *usedFrames;
-
-
+//    bool *usedFrames;
 } AllInfo;
-
-
-uint64_t getDist(uint64_t n1, uint64_t n2)
-{
-    uint64_t dist;
-    // dist = abs (n1 - n2)
-    if (n1 < n2)
-    {
-        dist = n1 - n2;
-    }
-    else
-    {
-        dist = n2 - n1;
-    }
-    if (dist >= NUM_PAGES - dist)
-    {
-        return NUM_PAGES - dist;
-    }
-    else
-    {
-        return dist;
-    }
-}
 
 uint64_t getOffset(uint64_t virtualAddress)
 {
     return virtualAddress % ((uint64_t) 1 << OFFSET_WIDTH);
 }
 
-int saveFrameToEvict(AllInfo info)
+int saveFrameToEvict(AllInfo &info)
 {
-    uint64_t newDist = getDist(info.physicalAddr, info.currentPage);
+    uint64_t newDist = info.currentPage - info.physicalAddr;
+    newDist = newDist > 0 ? newDist : -newDist; // dist = abs(dist)
     if (newDist > info.oldDist)
     {
         info.oldDist = newDist;
@@ -108,10 +80,7 @@ int VMtraverse(AllInfo &info)
     // in case we reach a page:
     if (info.currentPrev == TABLES_DEPTH)
     {
-        if (!info.usedFrames[(uint64_t) info.currFrame])
-        {
-            saveFrameToEvict(info);
-        }
+        saveFrameToEvict(info); // if (!info.usedFrames[(uint64_t) info.currFrame])
         return SUCCESS;
     }
 
@@ -128,7 +97,7 @@ int VMtraverse(AllInfo &info)
             isEmpty = false;
         }
     }
-    if (!isEmpty && !info.usedFrames[(uint64_t) info.currFrame])
+    if (!isEmpty) //&& !info.usedFrames[(uint64_t) info.currFrame]
     {
         saveEmptyFrame(info);
     }
@@ -152,18 +121,12 @@ int VMtraverse(AllInfo &info)
  */
 void initPageArray(uint64_t pageArr[], uint64_t virtualAddress)
 {
-    for (int depth = TABLES_DEPTH; depth >= 0; depth--)
+    for (int depth = TABLES_DEPTH; depth > 0; depth--)
     {
-        if (depth > 0)
-        {
-            pageArr[depth] = virtualAddress & (PAGE_SIZE - 1);
-            virtualAddress = virtualAddress >> OFFSET_WIDTH;
-        }
-        else
-        {
-            pageArr[0] = virtualAddress;
-        }
+        pageArr[depth] = virtualAddress & (PAGE_SIZE - 1);
+        virtualAddress = virtualAddress >> OFFSET_WIDTH;
     }
+    pageArr[0] = virtualAddress;
 }
 
 void clearTable(uint64_t frameIndex)
@@ -180,8 +143,8 @@ uint64_t getPhysicalAddress(uint64_t virtualAddress, AllInfo info)
     word_t currFrame = 0;
     uint64_t maxFrame = 0;
     uint64_t pageArr[TABLES_DEPTH];
-    bool usedFrames[NUM_FRAMES] = {true};
-    info.usedFrames = usedFrames;
+//    bool usedFrames[NUM_FRAMES] = {true};
+//    info.usedFrames = usedFrames;
 
     uint64_t toRestore = virtualAddress >> OFFSET_WIDTH;
     initPageArray(pageArr, virtualAddress);
@@ -193,17 +156,17 @@ uint64_t getPhysicalAddress(uint64_t virtualAddress, AllInfo info)
 //        std::cout << "page size: " << PAGE_SIZE << std::endl;
         physicalAddress = prevFrame * PAGE_SIZE + pageArr[depth];
         PMread(physicalAddress, &currFrame);
-        if (currFrame == 0)
+        if (currFrame == 0) // Is this what we need to check?
         {
             info.addrToEvict = 0;
             info.oldDist = 0;
-            info.frameToEvict = 0;
-            info.pageToEvict = 0;
-            info.emptyFrame = 0;
-            info.emptyAddr = 0;
+            info.frameToEvict = nullptr;
+            info.pageToEvict = nullptr;
+            info.emptyFrame = nullptr;
+            info.emptyAddr = nullptr;
             VMtraverse(info);
 
-            if (info.emptyFrame) // empty table.
+            if (info.emptyFrame != nullptr) // empty table.
             {
 //                std::cout << "line 205: "  << currFrame << std::endl;
                 currFrame = (uint64_t) info.emptyFrame;
@@ -225,7 +188,7 @@ uint64_t getPhysicalAddress(uint64_t virtualAddress, AllInfo info)
 
             PMwrite(physicalAddress, currFrame);
 
-            usedFrames[currFrame] = true;
+//            usedFrames[currFrame] = true;
 
             if (depth != TABLES_DEPTH - 1)
             {
@@ -236,8 +199,6 @@ uint64_t getPhysicalAddress(uint64_t virtualAddress, AllInfo info)
 //                std::cout << "line 233: " << currFrame << std::endl;
                 PMrestore(currFrame, toRestore);
             }
-
-
 
         }
         currFrame = prevFrame;
@@ -264,7 +225,7 @@ int VMread(uint64_t virtualAddress, word_t* value)
 //    info.pageNumber = virtualAddress >> OFFSET_WIDTH;
 //    info.toWrite = false;
 //    info.value = value;
-    std::cout << "val: " << value << std::endl;
+    std::cout << "val: " << value << std::endl; // TBD
     PMread(getPhysicalAddress(virtualAddress, info), value);
     return SUCCESS;
 }

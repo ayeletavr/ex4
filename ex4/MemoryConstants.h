@@ -37,9 +37,9 @@
 
 #elif NO_EVICTION_CONSTANTS
 
-#define OFFSET_WIDTH 5
-#define PHYSICAL_ADDRESS_WIDTH 5
-#define VIRTUAL_ADDRESS_WIDTH 5
+#define OFFSET_WIDTH 1 // originally: 5
+#define PHYSICAL_ADDRESS_WIDTH 4 // originally: 5
+#define VIRTUAL_ADDRESS_WIDTH 5 // originally: 5
 
 #else
 

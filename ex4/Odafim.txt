@@ -1,0 +1,7 @@
+
+uint64_t getDist(uint64_t n1, uint64_t n2)
+{
+    uint64_t dist;
+    n1 < n2 ?  dist = n2 - n1 : dist = n1 - n2;
+    return dist;
+}
