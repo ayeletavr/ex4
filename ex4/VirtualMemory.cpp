@@ -10,21 +10,14 @@
  * @param virtAddrByBits
  * @param virtualAddress
  */
-int initVirtAddrByBits(uint64_t *virtAddrByBits, uint64_t virtualAddress)
+void initVirtAddrByBits(uint64_t virtAddrByBits[TABLES_DEPTH], uint64_t virtualAddress)
 {
-    uint64_t requestedPageNumber = virtualAddress >> OFFSET_WIDTH;
-//    if (requestedPageNumber == 0) // TODO: check if this is what we should do
-//    {
-//        return FAILURE;
-//    }
-
     for (int depth = TABLES_DEPTH; depth > 0; depth--)
     {
         virtAddrByBits[depth] = virtualAddress & (PAGE_SIZE - 1);
         virtualAddress = virtualAddress >> OFFSET_WIDTH;
     }
     virtAddrByBits[0] = virtualAddress;
-    return SUCCESS;
 }
 
 void clearTable(uint64_t frameIndex)
@@ -41,10 +34,16 @@ void clearTable(uint64_t frameIndex)
 void printMap()
 {
     word_t word;
+
     for (int i = 0; i < RAM_SIZE; i++)
     {
         PMread(i, &word);
-        std::cout << "(" << i << ", " << word << ")" << std::endl;
+        std::cout << "(" << i << ", " << word << "), "  << std::endl;
+//        if (i % PAGE_SIZE == 0 && i != 0)
+//        {
+//            std::cout << std::endl;
+//            std::cout << "Node " << (i / OFFSET_WIDTH) << ": ";
+//        }
     }
 }
 
@@ -178,6 +177,7 @@ uint64_t getPhysicalAddress(uint64_t virtualAddress)
     uint64_t virtualAddressToRestore = virtualAddress >> OFFSET_WIDTH;
 
     int tempDepth = 0; // TBD
+    bool didWeFindPage = true;
     for (uint64_t bit : addrInBitsArr)
     {
         ourFather = currFrame; // Save the node that points to us before updating
@@ -186,6 +186,7 @@ uint64_t getPhysicalAddress(uint64_t virtualAddress)
 
         if (currFrame == 0) // If the node doesn't exist, we need to find an empty node or evict one
         {
+            didWeFindPage = false;
             initializeAllGlobals(currNodeAddr, prevNodeAddr, maximumFrameVisited, currDepth,
                                  nodeToRemove,
                                  currPage, prevOfNodeToRemove, pageOfNodeToRemove,
@@ -200,46 +201,56 @@ uint64_t getPhysicalAddress(uint64_t virtualAddress)
             {
                 if (nodeToRemove == 0)
                 {
-                    std::cerr << "Evicted frame0, you have a bug" << std::endl;
+                    std::cout << "Evicted frame0, you have a bug" << std::endl;
                 } // TBD, sanity check
 
-//                std::cout << "Found Empty" << std::endl; //TBD
 
                 currFrame = nodeToRemove; // In this case, the empty one
                 clearTable(currFrame); // it now points to 0 EVERYWHERE
                 uint64_t offsetOfNodeToRemove = pageOfNodeToRemove % PAGE_SIZE;
                 PMwrite(prevOfNodeToRemove * PAGE_SIZE + offsetOfNodeToRemove,0); // Update pointer
+                std::cout << "Found Empty: " << currFrame << std::endl; //TBD
+
             }
             else if (maximumFrameVisited + 1 < NUM_FRAMES) // There is an unused frame
             {
                 currFrame = (uint64_t) maximumFrameVisited + 1;
                 clearTable(currFrame); // The previous of it now points to 0 EVERYWHERE
-//                std::cout << "Found New Unused" << std::endl; //TBD
+                std::cout << "Found New Unused: "  << currFrame << std::endl; //TBD
             }
             else // All frames are already used, remove node with maximal weight
             {
                 if (nodeToRemove == 0)
                 {
-                    std::cerr << "Evicted frame0, you have a bug" << std::endl;
+                    std::cout << "Evicted frame0, you have a bug" << std::endl;
                 } // TBD, sanity check
-//                std::cout << "Evicted max, " << nodeToRemove << std::endl; //TBD
+                std::cout << "Evicted max, " << nodeToRemove << std::endl; //TBD
 
                 currFrame = nodeToRemove;
                 uint64_t offsetOfNodeToRemove = pageOfNodeToRemove % PAGE_SIZE;
                 PMevict(nodeToRemove, pageOfNodeToRemove);
+                std::cout << "Called evict, addr: " << nodeToRemove << " ,Page: " << pageOfNodeToRemove << std::endl; //TBD
+
+
                 PMwrite(prevOfNodeToRemove * PAGE_SIZE + offsetOfNodeToRemove,0); // Update pointer
                 clearTable(currFrame); // The previous of it now points to 0 EVERYWHERE
             }
 
             // In any case, update the current node to point to the added one (currFrame)
             PMwrite(currPhysicalAddress, currFrame);
-//            printMap(); // TBD
+
+            printMap(); // TBD
 
         }
         tempDepth++;
     }
     // This is after we found a page (leaf), so we should insert it into the map of pages <-> addresses:
-    PMrestore(currFrame, virtualAddressToRestore);
+    if (didWeFindPage)
+    {
+        PMrestore(currFrame, virtualAddressToRestore);
+        std::cout << "Called restore, addr: " << currFrame << " ,Page: " << virtualAddressToRestore << std::endl; //TBD
+    }
+
     return currFrame * PAGE_SIZE + (virtualAddress % ((uint64_t) 1 << OFFSET_WIDTH));
 }
 
@@ -251,11 +262,13 @@ void VMinitialize()
 
 int VMread(uint64_t virtualAddress, word_t* value)
 {
-    if (virtualAddress >= VIRTUAL_MEMORY_SIZE) // TODO check if value is of the right number of bits?
+    if (virtualAddress >= NUM_PAGES) // TODO check if value is of the right number of bits?
     {
         std::cerr << "Read Failed." << std::endl; // TBD
         return FAILURE;
     }
+
+//    std::cout << "read(" << virtualAddress << ", " << value << ")" << std::endl; // TBD
 
     PMread(getPhysicalAddress(virtualAddress), value);
     return SUCCESS;
@@ -264,12 +277,16 @@ int VMread(uint64_t virtualAddress, word_t* value)
 
 int VMwrite(uint64_t virtualAddress, word_t value)
 {
-    if (virtualAddress >= VIRTUAL_MEMORY_SIZE) // TODO check if value is of the right number of bits?
+    if (virtualAddress >= NUM_PAGES) // TODO check if value is of the right number of bits?
     {
-        std::cerr << "Write Failed." << std::endl; // TBD
+        std::cout << "Write Failed." << std::endl; // TBD
 
         return FAILURE;
     }
+
+//    std::cout << "write(" << virtualAddress << ", " << value << ")" << std::endl; // TBD
+
+
     PMwrite(getPhysicalAddress(virtualAddress), value);
     return SUCCESS;
 }
