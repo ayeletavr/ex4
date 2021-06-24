@@ -5,3 +5,72 @@ uint64_t getDist(uint64_t n1, uint64_t n2)
     n1 < n2 ?  dist = n2 - n1 : dist = n1 - n2;
     return dist;
 }
+
+//    if (!isEmpty) //&& !info.usedFrames[(uint64_t) info.currFrame]
+//    {
+//        saveEmptyFrame(info);
+//    }
+
+//    uint64_t currDepthAddr = 0;
+//    for (unsigned int depth = 0; depth <= (unsigned int) TABLES_DEPTH; depth++)
+//    {
+//
+//        PMread(currDepthAddr * PAGE_SIZE + );
+//        depth = 1;
+//
+//    }
+
+
+
+//void saveEmptyFrame(AllInfo info)
+//{
+//    info.emptyFrame = info.currFrame;
+//    *info.emptyAddr = (uint64_t) info.currentPrev * PAGE_SIZE * info.offSet;
+//}
+
+//bool getIthBit(unsigned int i, uint64_t num) // TBD
+//{
+//    return ((num >> i) & 1u);
+//}
+//
+//bool getIthMSBSet(unsigned int i, uint64_t num) // TBD
+//{
+//
+//    return ((num >> i) & 1u);
+//}
+
+
+void saveFrameToEvict(AllInfo &info)
+{
+    info.frameToEvict = info.currFrame;
+    *info.pageToEvict = *info.currFrame;
+    info.addrToEvict = info.currentPrev * PAGE_SIZE + info.offSet;
+}
+                currFrame = (uint64_t ) info.frameToEvict;
+                PMevict(currFrame, (uint64_t) info.pageToEvict);
+                PMwrite((uint64_t ) info.addrToEvict, 0);
+
+typedef struct AllInfo
+{
+    uint64_t maximumFrameVisited;
+//    uint64_t currentlyVisitedSon; // TBD
+    uint64_t currentPrev;
+    uint64_t offSet;
+    uint64_t pageNumber; //TBD
+    uint64_t physicalAddr;
+    uint64_t addrToEvict;
+//    uint64_t currentPage;
+    uint64_t oldDist;
+
+    uint64_t frameToReadWrite;
+    word_t *value; // TBD
+
+    word_t *currFrame;
+    word_t *frameToEvict;
+    word_t *pageToEvict;
+    word_t *emptyFrame;
+    uint64_t *emptyAddr;
+
+    uint64_t currDepth;
+//    bool *usedFrames;
+} AllInfo;

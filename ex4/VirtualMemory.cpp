@@ -4,129 +4,27 @@
 #define SUCCESS 1
 #define FAILURE 0
 
-typedef struct AllInfo
+
+/***
+ * @brief initialize array with offsets.
+ * @param virtAddrByBits
+ * @param virtualAddress
+ */
+int initVirtAddrByBits(uint64_t *virtAddrByBits, uint64_t virtualAddress)
 {
-    uint64_t maximumFrameVisited;
-//    uint64_t currentlyVisitedSon; // TBD
-    uint64_t currentPrev;
-    uint64_t offSet;
-    uint64_t pageNumber; //TBD
-    uint64_t physicalAddr;
-    uint64_t addrToEvict;
-    uint64_t currentPage;
-    uint64_t oldDist;
-
-    uint64_t frameToReadWrite;
-    word_t *value; // TBD
-
-    word_t *currFrame;
-    word_t *frameToEvict;
-    word_t *pageToEvict;
-    word_t *emptyFrame;
-    word_t *emptyAddr;
-//    bool *usedFrames;
-} AllInfo;
-
-uint64_t getOffset(uint64_t virtualAddress)
-{
-    return virtualAddress % ((uint64_t) 1 << OFFSET_WIDTH);
-}
-
-int saveFrameToEvict(AllInfo &info)
-{
-    uint64_t newDist = info.currentPage - info.physicalAddr;
-    newDist = newDist > 0 ? newDist : -newDist; // dist = abs(dist)
-    if (newDist > info.oldDist)
-    {
-        info.oldDist = newDist;
-        info.frameToEvict = info.currFrame;
-        *info.pageToEvict = (word_t) info.currentPage;
-        info.addrToEvict = info.currentPrev * PAGE_SIZE + info.offSet;
-        return SUCCESS;
-    }
-    return FAILURE;
-}
-
-void saveEmptyFrame(AllInfo info)
-{
-    info.emptyFrame = info.currFrame;
-    *info.emptyAddr = info.currentPrev * PAGE_SIZE * info.offSet;
-}
-
-//bool getIthBit(unsigned int i, uint64_t num) // TBD
-//{
-//    return ((num >> i) & 1u);
-//}
-//
-//bool getIthMSBSet(unsigned int i, uint64_t num) // TBD
-//{
-//
-//    return ((num >> i) & 1u);
-//}
-
-
-int VMtraverse(AllInfo &info)
-{
-    if (info.pageNumber == 0)
+    uint64_t requestedPageNumber = virtualAddress >> OFFSET_WIDTH;
+    if (requestedPageNumber == 0) // TODO: check if this is what we should do
     {
         return FAILURE;
     }
 
-    if (*info.currFrame > (word_t) info.maximumFrameVisited)
-    {
-        info.maximumFrameVisited = *info.currFrame;
-    }
-
-    // in case we reach a page:
-    if (info.currentPrev == TABLES_DEPTH)
-    {
-        saveFrameToEvict(info); // if (!info.usedFrames[(uint64_t) info.currFrame])
-        return SUCCESS;
-    }
-
-    word_t nextFrame = 0;
-    bool isEmpty = true;
-
-    for (uint64_t page = 0; page < PAGE_SIZE; page++)
-    {
-        PMread((uint64_t) info.currFrame * PAGE_SIZE + page, &nextFrame);
-        if (nextFrame)
-        {
-//            uint64_t nextFrame = ((int64_t) info.currentPage << OFFSET_WIDTH) + page;
-            VMtraverse(info);
-            isEmpty = false;
-        }
-    }
-    if (!isEmpty) //&& !info.usedFrames[(uint64_t) info.currFrame]
-    {
-        saveEmptyFrame(info);
-    }
-
-//    uint64_t currDepthAddr = 0;
-//    for (unsigned int depth = 0; depth <= (unsigned int) TABLES_DEPTH; depth++)
-//    {
-//
-//        PMread(currDepthAddr * PAGE_SIZE + );
-//        depth = 1;
-//
-//    }
-
-    return SUCCESS;
-}
-
-/***
- * @brief initialize array with offsets.
- * @param pageArr
- * @param virtualAddress
- */
-void initPageArray(uint64_t pageArr[], uint64_t virtualAddress)
-{
     for (int depth = TABLES_DEPTH; depth > 0; depth--)
     {
-        pageArr[depth] = virtualAddress & (PAGE_SIZE - 1);
+        virtAddrByBits[depth] = virtualAddress & (PAGE_SIZE - 1);
         virtualAddress = virtualAddress >> OFFSET_WIDTH;
     }
-    pageArr[0] = virtualAddress;
+    virtAddrByBits[0] = virtualAddress;
+    return SUCCESS;
 }
 
 void clearTable(uint64_t frameIndex)
@@ -136,75 +34,178 @@ void clearTable(uint64_t frameIndex)
     }
 }
 
-uint64_t getPhysicalAddress(uint64_t virtualAddress, AllInfo info)
+
+void findNodeToRemove(
+        uint64_t &currNodeAddr, uint64_t &prevNodeAddr, uint64_t &maximumFrameVisited, uint64_t &currDepth,
+        uint64_t &nodeToRemove, uint64_t &currPage, uint64_t &prevOfNodeToRemove,
+        uint64_t &pageOfNodeOfMaxWeight, uint64_t &maxWeightVal, uint64_t &weightOfCurrNode, bool &foundEmptyNode,
+        const uint64_t ourFather    )
 {
-    uint64_t physicalAddress;
-    word_t prevFrame = 0;
-    word_t currFrame = 0;
-    uint64_t maxFrame = 0;
-    uint64_t pageArr[TABLES_DEPTH];
-//    bool usedFrames[NUM_FRAMES] = {true};
-//    info.usedFrames = usedFrames;
-
-    uint64_t toRestore = virtualAddress >> OFFSET_WIDTH;
-    initPageArray(pageArr, virtualAddress);
-
-    for (int depth = 0; depth < TABLES_DEPTH; depth++)
+    if (currNodeAddr > maximumFrameVisited)
     {
-//        std::cout << "pageArr: " << pageArr[depth] << std::endl;
-//        std::cout << "prevFrame: " << prevFrame << std::endl;
-//        std::cout << "page size: " << PAGE_SIZE << std::endl;
-        physicalAddress = prevFrame * PAGE_SIZE + pageArr[depth];
-        PMread(physicalAddress, &currFrame);
-        if (currFrame == 0) // Is this what we need to check?
-        {
-            info.addrToEvict = 0;
-            info.oldDist = 0;
-            info.frameToEvict = nullptr;
-            info.pageToEvict = nullptr;
-            info.emptyFrame = nullptr;
-            info.emptyAddr = nullptr;
-            VMtraverse(info);
-
-            if (info.emptyFrame != nullptr) // empty table.
-            {
-//                std::cout << "line 205: "  << currFrame << std::endl;
-                currFrame = (uint64_t) info.emptyFrame;
-                PMwrite((uint64_t) info.emptyAddr, 0);
-            }
-
-            else if (info.maximumFrameVisited + 1 < NUM_FRAMES) // unused frame.
-            {
-//                std::cout << "line 211: " << currFrame << std::endl;
-                currFrame = (uint64_t) info.maximumFrameVisited + 1;
-            }
-            else // evict - all frames are already used.
-            {
-//                std::cout << "line 216: " << currFrame << std::endl;
-                currFrame = (uint64_t ) info.frameToEvict;
-                PMevict(currFrame, (uint64_t) info.pageToEvict);
-                PMwrite((uint64_t ) info.addrToEvict, 0);
-            }
-
-            PMwrite(physicalAddress, currFrame);
-
-//            usedFrames[currFrame] = true;
-
-            if (depth != TABLES_DEPTH - 1)
-            {
-                clearTable(currFrame);
-            }
-            else
-            {
-//                std::cout << "line 233: " << currFrame << std::endl;
-                PMrestore(currFrame, toRestore);
-            }
-
-        }
-        currFrame = prevFrame;
-//        prevFrame = currFrame;
+        currNodeAddr = maximumFrameVisited;
     }
-    return currFrame * PAGE_SIZE + getOffset(virtualAddress);
+
+    // in case we reach a page (i.e., leaf), update the maximal weight value
+    if (currDepth == TABLES_DEPTH)
+    {
+        weightOfCurrNode += currPage % 2 == 0 ? currPage * WEIGHT_EVEN : currPage * WEIGHT_ODD;
+
+        // If we found the node of maximal weight, set it to be evicted (nodeToRemove)
+        if ((weightOfCurrNode > maxWeightVal || (weightOfCurrNode == maxWeightVal && currPage < pageOfNodeOfMaxWeight))
+            && currNodeAddr != ourFather)
+        {
+            nodeToRemove = currNodeAddr;
+            pageOfNodeOfMaxWeight = currPage;
+            maxWeightVal = weightOfCurrNode;
+            prevOfNodeToRemove = prevNodeAddr;
+        }
+        return;
+    }
+
+    word_t nextFrame = 0;
+    bool isAllSonsZeros = true; // if it stays true after the loop, we found an empty node, which can be removed
+
+    for (uint64_t offSet = 0; offSet < PAGE_SIZE; offSet++)  // Iterate all sons
+    {
+        PMread((uint64_t) currNodeAddr * PAGE_SIZE + offSet, &nextFrame);
+        if (nextFrame != 0)
+        {
+            isAllSonsZeros = false;
+
+            // Before entering the recursion, save all of the current values
+            uint64_t tempPrevAddr = prevNodeAddr;
+            uint64_t tempCurrAddr = currNodeAddr;
+            uint64_t tempCurrPage = currPage;
+            uint64_t tempCurrWeight = weightOfCurrNode;
+
+            // Update to the correct values of inside the recursion
+            prevNodeAddr = currNodeAddr; // Update pointer to previous node
+            currNodeAddr = (uint64_t) nextFrame;
+            currPage = currPage * PAGE_SIZE + offSet; // Update page number recursively. This includes data on offset
+            weightOfCurrNode += currNodeAddr % 2 == 0 ? currNodeAddr * WEIGHT_EVEN : currNodeAddr * WEIGHT_ODD;
+            currDepth++; // Enter a deeper level by recursively calling the DFS
+
+            findNodeToRemove(
+                    currNodeAddr, prevNodeAddr, maximumFrameVisited, currDepth, nodeToRemove,
+                    currPage, prevOfNodeToRemove, pageOfNodeOfMaxWeight,
+                    maxWeightVal, weightOfCurrNode, foundEmptyNode, ourFather
+            );
+
+            // Step out of the recursion and reset the 'global' values to the previous value
+            currDepth--;
+            weightOfCurrNode -= tempCurrWeight; // Update current node's weight
+            currPage = tempCurrPage;
+            currNodeAddr = tempCurrAddr;
+            prevNodeAddr = tempPrevAddr;
+        }
+    }
+    if (isAllSonsZeros && currNodeAddr != ourFather)
+    {
+        foundEmptyNode = true;
+        nodeToRemove = currNodeAddr;
+        prevOfNodeToRemove = prevNodeAddr;
+        return;
+    }
+}
+
+// A function to restart all 'Global' values to 0 before every call to the DFS
+void initializeAllGlobals(
+        uint64_t &currNodeAddr, uint64_t &prevNodeAddr, uint64_t &maximumFrameVisited, uint64_t &currDepth,
+        uint64_t &nodeToRemove, uint64_t &currPage, uint64_t &prevOfNodeToRemove,
+        uint64_t &pageOfNodeOfMaxWeight, uint64_t &maxWeightVal, uint64_t &weightOfCurrNode, bool &foundEmptyNode    )
+{
+    // 'global' variables for the recursive DFS (findNodeToRemove):
+    currNodeAddr = 0; // Current node in the DFS
+    prevNodeAddr = 0; // pi(currNodeAddr) in the DFS: for easily removing an empty node
+    maximumFrameVisited = 0;
+    currDepth = 0;
+
+    nodeToRemove = 0; // The node to evict or remove
+    currPage = 0; // Updates in case we are in a page, i.e., leaf
+    prevOfNodeToRemove = 0;
+
+    pageOfNodeOfMaxWeight = 0;
+    maxWeightVal = 0;
+    weightOfCurrNode = 0;
+
+    foundEmptyNode = false; // If it stays false, we should take maximal unvisited node or evict on
+}
+
+
+uint64_t getPhysicalAddress(uint64_t virtualAddress)
+{
+    // 'global' variables for the recursive DFS (findNodeToRemove):
+    uint64_t currNodeAddr = 0; // Current node in the DFS
+    uint64_t prevNodeAddr = 0; // pi(currNodeAddr) in the DFS: for easily removing an empty node
+    uint64_t maximumFrameVisited = 0;
+    uint64_t currDepth = 0;
+
+
+    uint64_t nodeToRemove = 0; // The node to evict or remove
+    uint64_t currPage = 0; // Updates in case we are in a page, i.e., leaf
+    uint64_t prevOfNodeToRemove = 0;
+
+    uint64_t pageOfNodeOfMaxWeight = 0;
+    uint64_t maxWeightVal = 0;
+    uint64_t weightOfCurrNode = 0;
+
+    bool foundEmptyNode = false; // If it stays false, we should take maximal unvisited node or evict one
+
+    // local variables for our searching function
+    uint64_t currPhysicalAddress = 0;
+    word_t currFrame = 0;
+    uint64_t ourFather = 0; // To make sure we don't evict our own father
+    uint64_t addrInBitsArr[TABLES_DEPTH]; // Initialize the page array
+    initVirtAddrByBits(addrInBitsArr, virtualAddress);
+
+    uint64_t virtualAddressToRestore = virtualAddress >> OFFSET_WIDTH;
+
+    for (uint64_t depth : addrInBitsArr)
+    {
+        ourFather = currFrame; // Save the node that points to us before updating
+        currPhysicalAddress = currFrame * PAGE_SIZE + depth; // next address to visit
+        PMread(currPhysicalAddress, &currFrame);  // Update current frame
+
+        if (currFrame == 0) // If the node doesn't exist, we need to find an empty node or evict one
+        {
+            initializeAllGlobals(currNodeAddr, prevNodeAddr, maximumFrameVisited, currDepth,
+                                 nodeToRemove,
+                                 currPage, prevOfNodeToRemove, pageOfNodeOfMaxWeight,
+                                 maxWeightVal, weightOfCurrNode, foundEmptyNode);
+            findNodeToRemove(
+                    currNodeAddr, prevNodeAddr, maximumFrameVisited, currDepth, nodeToRemove,
+                    currPage, prevOfNodeToRemove, pageOfNodeOfMaxWeight,
+                    maxWeightVal, weightOfCurrNode, foundEmptyNode, ourFather
+            );
+
+            if (nodeToRemove == 0) {std::cerr << "Evicted frame0, you have a bug" << std::endl;} // TBD, sanity check
+
+            if (foundEmptyNode) // If there's a node with no sons, just remove it
+            {
+                currFrame = nodeToRemove; // In this case, the empty one
+                clearTable(currPhysicalAddress); // The previous of it now points to 0 EVERYWHERE
+            }
+            else if (maximumFrameVisited + 1 < NUM_FRAMES) // There is an unused frame
+            {
+                currFrame = (uint64_t) maximumFrameVisited + 1;
+                clearTable(currFrame); // It may have garbage values, we initialize it to 0
+            }
+            else // All frames are already used, remove node with maximal weight
+            {
+                uint64_t offsetOfNodeToRemove = pageOfNodeOfMaxWeight % PAGE_SIZE;
+                PMevict(nodeToRemove, pageOfNodeOfMaxWeight);
+                PMwrite(prevOfNodeToRemove * PAGE_SIZE + offsetOfNodeToRemove,0); // Update pointer
+            }
+
+            // In any case, update the current node to point to the added one (currFrame)
+            PMwrite(currPhysicalAddress, currFrame);
+        }
+        
+        // This is after we found a page (leaf), so we should insert it into the map of pages <-> addresses:
+        PMrestore(currFrame, virtualAddressToRestore);
+    }
+    return currFrame * PAGE_SIZE + (virtualAddress % ((uint64_t) 1 << OFFSET_WIDTH));
 }
 
 void VMinitialize()
@@ -220,13 +221,7 @@ int VMread(uint64_t virtualAddress, word_t* value)
         return FAILURE;
     }
 
-    AllInfo info = {0};
-//    info.offSet = virtualAddress % ((uint64_t) 1 << OFFSET_WIDTH);
-//    info.pageNumber = virtualAddress >> OFFSET_WIDTH;
-//    info.toWrite = false;
-//    info.value = value;
-    std::cout << "val: " << value << std::endl; // TBD
-    PMread(getPhysicalAddress(virtualAddress, info), value);
+    PMread(getPhysicalAddress(virtualAddress), value);
     return SUCCESS;
 }
 
@@ -237,11 +232,6 @@ int VMwrite(uint64_t virtualAddress, word_t value)
     {
         return FAILURE;
     }
-    AllInfo info = {0};
-//    info.offSet = virtualAddress % ((uint64_t) 1 << OFFSET_WIDTH);
-//    info.pageNumber = virtualAddress >> OFFSET_WIDTH;
-//    info.toWrite = true;
-    PMwrite(getPhysicalAddress(virtualAddress, info), value);
-
+    PMwrite(getPhysicalAddress(virtualAddress), value);
     return SUCCESS;
 }
