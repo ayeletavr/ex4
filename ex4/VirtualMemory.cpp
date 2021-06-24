@@ -35,10 +35,23 @@ void clearTable(uint64_t frameIndex)
 }
 
 
+
+
+/// TBD
+void printMap()
+{
+    word_t word;
+    for (int i = 0; i < RAM_SIZE; i++)
+    {
+        PMread(i, &word);
+        std::cout << "(" << i << ", " << word << ")" << std::endl;
+    }
+}
+
 void findNodeToRemove(
         uint64_t &currNodeAddr, uint64_t &prevNodeAddr, uint64_t &maximumFrameVisited, uint64_t &currDepth,
         uint64_t &nodeToRemove, uint64_t &currPage, uint64_t &prevOfNodeToRemove,
-        uint64_t &pageOfNodeOfMaxWeight, uint64_t &maxWeightVal, uint64_t &weightOfCurrNode, bool &foundEmptyNode,
+        uint64_t &pageOfNodeToRemove, uint64_t &maxWeightVal, uint64_t &weightOfCurrNode, bool &foundEmptyNode,
         const uint64_t &ourFather    )
 {
     if (currNodeAddr > maximumFrameVisited) // case of a new maximum.
@@ -53,11 +66,11 @@ void findNodeToRemove(
         weightOfCurrNode += currNodeAddr % 2 == 0 ? WEIGHT_EVEN : WEIGHT_ODD;
 
         // If we found the node of maximal weight, set it to be evicted (nodeToRemove)
-        if ((weightOfCurrNode > maxWeightVal || (weightOfCurrNode == maxWeightVal && currPage < pageOfNodeOfMaxWeight))
+        if ((weightOfCurrNode > maxWeightVal || (weightOfCurrNode == maxWeightVal && currPage < pageOfNodeToRemove))
             && currNodeAddr != ourFather)
         {
             nodeToRemove = currNodeAddr;
-            pageOfNodeOfMaxWeight = currPage;
+            pageOfNodeToRemove = currPage;
             maxWeightVal = weightOfCurrNode;
             prevOfNodeToRemove = prevNodeAddr;
         }
@@ -90,7 +103,7 @@ void findNodeToRemove(
 
             findNodeToRemove(
                     currNodeAddr, prevNodeAddr, maximumFrameVisited, currDepth, nodeToRemove,
-                    currPage, prevOfNodeToRemove, pageOfNodeOfMaxWeight,
+                    currPage, prevOfNodeToRemove, pageOfNodeToRemove,
                     maxWeightVal, weightOfCurrNode, foundEmptyNode, ourFather
             );
 
@@ -107,6 +120,7 @@ void findNodeToRemove(
         foundEmptyNode = true;
         nodeToRemove = currNodeAddr;
         prevOfNodeToRemove = prevNodeAddr;
+        pageOfNodeToRemove = currPage;
         return;
     }
 }
@@ -148,7 +162,7 @@ uint64_t getPhysicalAddress(uint64_t virtualAddress)
     uint64_t currPage = 0; // Updates in case we are in a page, i.e., leaf
     uint64_t prevOfNodeToRemove = 0;
 
-    uint64_t pageOfNodeOfMaxWeight = 0;
+    uint64_t pageOfNodeToRemove = 0;
     uint64_t maxWeightVal = 0;
     uint64_t weightOfCurrNode = 0;
 
@@ -174,11 +188,11 @@ uint64_t getPhysicalAddress(uint64_t virtualAddress)
         {
             initializeAllGlobals(currNodeAddr, prevNodeAddr, maximumFrameVisited, currDepth,
                                  nodeToRemove,
-                                 currPage, prevOfNodeToRemove, pageOfNodeOfMaxWeight,
+                                 currPage, prevOfNodeToRemove, pageOfNodeToRemove,
                                  maxWeightVal, weightOfCurrNode, foundEmptyNode);
             findNodeToRemove(
                     currNodeAddr, prevNodeAddr, maximumFrameVisited, currDepth, nodeToRemove,
-                    currPage, prevOfNodeToRemove, pageOfNodeOfMaxWeight,
+                    currPage, prevOfNodeToRemove, pageOfNodeToRemove,
                     maxWeightVal, weightOfCurrNode, foundEmptyNode, ourFather
             );
 
@@ -189,15 +203,18 @@ uint64_t getPhysicalAddress(uint64_t virtualAddress)
                     std::cerr << "Evicted frame0, you have a bug" << std::endl;
                 } // TBD, sanity check
 
-                currFrame = nodeToRemove; // In this case, the empty one
-                clearTable(currFrame); // The previous of it now points to 0 EVERYWHERE
+//                std::cout << "Found Empty" << std::endl; //TBD
 
+                currFrame = nodeToRemove; // In this case, the empty one
+                clearTable(currFrame); // it now points to 0 EVERYWHERE
+                uint64_t offsetOfNodeToRemove = pageOfNodeToRemove % PAGE_SIZE;
+                PMwrite(prevOfNodeToRemove * PAGE_SIZE + offsetOfNodeToRemove,0); // Update pointer
             }
             else if (maximumFrameVisited + 1 < NUM_FRAMES) // There is an unused frame
             {
                 currFrame = (uint64_t) maximumFrameVisited + 1;
                 clearTable(currFrame); // The previous of it now points to 0 EVERYWHERE
-
+//                std::cout << "Found New Unused" << std::endl; //TBD
             }
             else // All frames are already used, remove node with maximal weight
             {
@@ -205,13 +222,19 @@ uint64_t getPhysicalAddress(uint64_t virtualAddress)
                 {
                     std::cerr << "Evicted frame0, you have a bug" << std::endl;
                 } // TBD, sanity check
-                uint64_t offsetOfNodeToRemove = pageOfNodeOfMaxWeight % PAGE_SIZE;
-                PMevict(nodeToRemove, pageOfNodeOfMaxWeight);
-                PMwrite(prevOfNodeToRemove * PAGE_SIZE + offsetOfNodeToRemove,0); // Update pointer TBD
+//                std::cout << "Evicted max, " << nodeToRemove << std::endl; //TBD
+
+                currFrame = nodeToRemove;
+                uint64_t offsetOfNodeToRemove = pageOfNodeToRemove % PAGE_SIZE;
+                PMevict(nodeToRemove, pageOfNodeToRemove);
+                PMwrite(prevOfNodeToRemove * PAGE_SIZE + offsetOfNodeToRemove,0); // Update pointer
+                clearTable(currFrame); // The previous of it now points to 0 EVERYWHERE
             }
 
             // In any case, update the current node to point to the added one (currFrame)
             PMwrite(currPhysicalAddress, currFrame);
+//            printMap(); // TBD
+
         }
         tempDepth++;
     }
@@ -230,6 +253,7 @@ int VMread(uint64_t virtualAddress, word_t* value)
 {
     if (virtualAddress >= VIRTUAL_MEMORY_SIZE) // TODO check if value is of the right number of bits?
     {
+        std::cerr << "Read Failed." << std::endl; // TBD
         return FAILURE;
     }
 
@@ -242,6 +266,8 @@ int VMwrite(uint64_t virtualAddress, word_t value)
 {
     if (virtualAddress >= VIRTUAL_MEMORY_SIZE) // TODO check if value is of the right number of bits?
     {
+        std::cerr << "Write Failed." << std::endl; // TBD
+
         return FAILURE;
     }
     PMwrite(getPhysicalAddress(virtualAddress), value);
