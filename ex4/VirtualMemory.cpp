@@ -53,10 +53,20 @@ void findNodeToRemove(
         uint64_t &pageOfNodeToRemove, uint64_t &maxWeightVal, uint64_t &weightOfCurrNode, bool &foundEmptyNode,
         const uint64_t &ourFather    )
 {
+    if (foundEmptyNode)
+    {
+        return;
+    }
     if (currNodeAddr > maximumFrameVisited) // case of a new maximum.
     {
         maximumFrameVisited = currNodeAddr;
     }
+
+
+    word_t tempFrame = 0; // TBD
+    PMread(16, &tempFrame); // TBD
+    std::cout << "{dfs with " << currNodeAddr << "}, node 8 is: " << tempFrame << std::endl; // TBD
+
 
     // in case we reach a page (i.e., leaf), update the maximal weight value
     if (currDepth == TABLES_DEPTH)
@@ -184,9 +194,15 @@ uint64_t getPhysicalAddress(uint64_t virtualAddress)
         currPhysicalAddress = currFrame * PAGE_SIZE + bit; // next address to visit
         PMread(currPhysicalAddress, &currFrame);  // Update current frame
 
+        word_t tempFrame = 0; // TBD
+        PMread(16, &tempFrame); // TBD
+        std::cout << "{189}, node 8 is: " << tempFrame << std::endl; // TBD
+
+
         if (currFrame == 0) // If the node doesn't exist, we need to find an empty node or evict one
         {
             didWeFindPage = false;
+
             initializeAllGlobals(currNodeAddr, prevNodeAddr, maximumFrameVisited, currDepth,
                                  nodeToRemove,
                                  currPage, prevOfNodeToRemove, pageOfNodeToRemove,
@@ -245,10 +261,11 @@ uint64_t getPhysicalAddress(uint64_t virtualAddress)
         tempDepth++;
     }
     // This is after we found a page (leaf), so we should insert it into the map of pages <-> addresses:
-    if (didWeFindPage)
+    if (not didWeFindPage)
     {
         PMrestore(currFrame, virtualAddressToRestore);
         std::cout << "Called restore, addr: " << currFrame << " ,Page: " << virtualAddressToRestore << std::endl; //TBD
+        printMap(); // TBD
     }
 
     return currFrame * PAGE_SIZE + (virtualAddress % ((uint64_t) 1 << OFFSET_WIDTH));
@@ -260,9 +277,9 @@ void VMinitialize()
 }
 
 
-int VMread(uint64_t virtualAddress, word_t* value)
+int VMread(const uint64_t virtualAddress, word_t* value)
 {
-    if (virtualAddress >= NUM_PAGES) // TODO check if value is of the right number of bits?
+    if (virtualAddress >= VIRTUAL_MEMORY_SIZE) // TODO check if value is of the right number of bits?
     {
         std::cerr << "Read Failed." << std::endl; // TBD
         return FAILURE;
@@ -271,13 +288,22 @@ int VMread(uint64_t virtualAddress, word_t* value)
 //    std::cout << "read(" << virtualAddress << ", " << value << ")" << std::endl; // TBD
 
     PMread(getPhysicalAddress(virtualAddress), value);
+    std::cout << "after calling read(" << virtualAddress << ", " << (uint64_t ) *value << ")" << std::endl; // TBD
+
+    printMap(); // TBD
+
+    if ((uint64_t ) *value == 7 && virtualAddress == 7)
+    {
+        std::cout << "Your bug is close. " << std::endl; // TBD
+    }
+
     return SUCCESS;
 }
 
 
-int VMwrite(uint64_t virtualAddress, word_t value)
+int VMwrite(const uint64_t virtualAddress, word_t value)
 {
-    if (virtualAddress >= NUM_PAGES) // TODO check if value is of the right number of bits?
+    if (virtualAddress >= VIRTUAL_MEMORY_SIZE) // TODO check if value is of the right number of bits?
     {
         std::cout << "Write Failed." << std::endl; // TBD
 
