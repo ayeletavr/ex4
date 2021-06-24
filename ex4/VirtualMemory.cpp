@@ -13,10 +13,10 @@
 int initVirtAddrByBits(uint64_t *virtAddrByBits, uint64_t virtualAddress)
 {
     uint64_t requestedPageNumber = virtualAddress >> OFFSET_WIDTH;
-    if (requestedPageNumber == 0) // TODO: check if this is what we should do
-    {
-        return FAILURE;
-    }
+//    if (requestedPageNumber == 0) // TODO: check if this is what we should do
+//    {
+//        return FAILURE;
+//    }
 
     for (int depth = TABLES_DEPTH; depth > 0; depth--)
     {
@@ -39,17 +39,18 @@ void findNodeToRemove(
         uint64_t &currNodeAddr, uint64_t &prevNodeAddr, uint64_t &maximumFrameVisited, uint64_t &currDepth,
         uint64_t &nodeToRemove, uint64_t &currPage, uint64_t &prevOfNodeToRemove,
         uint64_t &pageOfNodeOfMaxWeight, uint64_t &maxWeightVal, uint64_t &weightOfCurrNode, bool &foundEmptyNode,
-        const uint64_t ourFather    )
+        const uint64_t &ourFather    )
 {
-    if (currNodeAddr > maximumFrameVisited)
+    if (currNodeAddr > maximumFrameVisited) // case of a new maximum.
     {
-        currNodeAddr = maximumFrameVisited;
+        maximumFrameVisited = currNodeAddr;
     }
 
     // in case we reach a page (i.e., leaf), update the maximal weight value
     if (currDepth == TABLES_DEPTH)
     {
-        weightOfCurrNode += currPage % 2 == 0 ? currPage * WEIGHT_EVEN : currPage * WEIGHT_ODD;
+        weightOfCurrNode += currPage % 2 == 0 ? WEIGHT_EVEN : WEIGHT_ODD;
+        weightOfCurrNode += currNodeAddr % 2 == 0 ? WEIGHT_EVEN : WEIGHT_ODD;
 
         // If we found the node of maximal weight, set it to be evicted (nodeToRemove)
         if ((weightOfCurrNode > maxWeightVal || (weightOfCurrNode == maxWeightVal && currPage < pageOfNodeOfMaxWeight))
@@ -62,6 +63,7 @@ void findNodeToRemove(
         }
         return;
     }
+    weightOfCurrNode += currNodeAddr % 2 == 0 ? WEIGHT_EVEN : WEIGHT_ODD;
 
     word_t nextFrame = 0;
     bool isAllSonsZeros = true; // if it stays true after the loop, we found an empty node, which can be removed
@@ -69,6 +71,7 @@ void findNodeToRemove(
     for (uint64_t offSet = 0; offSet < PAGE_SIZE; offSet++)  // Iterate all sons
     {
         PMread((uint64_t) currNodeAddr * PAGE_SIZE + offSet, &nextFrame);
+
         if (nextFrame != 0)
         {
             isAllSonsZeros = false;
@@ -83,7 +86,6 @@ void findNodeToRemove(
             prevNodeAddr = currNodeAddr; // Update pointer to previous node
             currNodeAddr = (uint64_t) nextFrame;
             currPage = currPage * PAGE_SIZE + offSet; // Update page number recursively. This includes data on offset
-            weightOfCurrNode += currNodeAddr % 2 == 0 ? currNodeAddr * WEIGHT_EVEN : currNodeAddr * WEIGHT_ODD;
             currDepth++; // Enter a deeper level by recursively calling the DFS
 
             findNodeToRemove(
@@ -94,13 +96,13 @@ void findNodeToRemove(
 
             // Step out of the recursion and reset the 'global' values to the previous value
             currDepth--;
-            weightOfCurrNode -= tempCurrWeight; // Update current node's weight
+            weightOfCurrNode = tempCurrWeight; // Update current node's weight
             currPage = tempCurrPage;
             currNodeAddr = tempCurrAddr;
             prevNodeAddr = tempPrevAddr;
         }
     }
-    if (isAllSonsZeros && currNodeAddr != ourFather)
+    if (isAllSonsZeros && currNodeAddr != ourFather && currNodeAddr != 0)
     {
         foundEmptyNode = true;
         nodeToRemove = currNodeAddr;
@@ -113,7 +115,7 @@ void findNodeToRemove(
 void initializeAllGlobals(
         uint64_t &currNodeAddr, uint64_t &prevNodeAddr, uint64_t &maximumFrameVisited, uint64_t &currDepth,
         uint64_t &nodeToRemove, uint64_t &currPage, uint64_t &prevOfNodeToRemove,
-        uint64_t &pageOfNodeOfMaxWeight, uint64_t &maxWeightVal, uint64_t &weightOfCurrNode, bool &foundEmptyNode    )
+        uint64_t &pageOfNodeOfMaxWeight, uint64_t &maxWeightVal, uint64_t &weightOfCurrNode, bool &foundEmptyNode)
 {
     // 'global' variables for the recursive DFS (findNodeToRemove):
     currNodeAddr = 0; // Current node in the DFS
@@ -161,10 +163,11 @@ uint64_t getPhysicalAddress(uint64_t virtualAddress)
 
     uint64_t virtualAddressToRestore = virtualAddress >> OFFSET_WIDTH;
 
-    for (uint64_t depth : addrInBitsArr)
+    int tempDepth = 0; // TBD
+    for (uint64_t bit : addrInBitsArr)
     {
         ourFather = currFrame; // Save the node that points to us before updating
-        currPhysicalAddress = currFrame * PAGE_SIZE + depth; // next address to visit
+        currPhysicalAddress = currFrame * PAGE_SIZE + bit; // next address to visit
         PMread(currPhysicalAddress, &currFrame);  // Update current frame
 
         if (currFrame == 0) // If the node doesn't exist, we need to find an empty node or evict one
@@ -179,32 +182,41 @@ uint64_t getPhysicalAddress(uint64_t virtualAddress)
                     maxWeightVal, weightOfCurrNode, foundEmptyNode, ourFather
             );
 
-            if (nodeToRemove == 0) {std::cerr << "Evicted frame0, you have a bug" << std::endl;} // TBD, sanity check
-
             if (foundEmptyNode) // If there's a node with no sons, just remove it
             {
+                if (nodeToRemove == 0)
+                {
+                    std::cerr << "Evicted frame0, you have a bug" << std::endl;
+                } // TBD, sanity check
+
                 currFrame = nodeToRemove; // In this case, the empty one
-                clearTable(currPhysicalAddress); // The previous of it now points to 0 EVERYWHERE
+                clearTable(currFrame); // The previous of it now points to 0 EVERYWHERE
+
             }
             else if (maximumFrameVisited + 1 < NUM_FRAMES) // There is an unused frame
             {
                 currFrame = (uint64_t) maximumFrameVisited + 1;
-                clearTable(currFrame); // It may have garbage values, we initialize it to 0
+                clearTable(currFrame); // The previous of it now points to 0 EVERYWHERE
+
             }
             else // All frames are already used, remove node with maximal weight
             {
+                if (nodeToRemove == 0)
+                {
+                    std::cerr << "Evicted frame0, you have a bug" << std::endl;
+                } // TBD, sanity check
                 uint64_t offsetOfNodeToRemove = pageOfNodeOfMaxWeight % PAGE_SIZE;
                 PMevict(nodeToRemove, pageOfNodeOfMaxWeight);
-                PMwrite(prevOfNodeToRemove * PAGE_SIZE + offsetOfNodeToRemove,0); // Update pointer
+                PMwrite(prevOfNodeToRemove * PAGE_SIZE + offsetOfNodeToRemove,0); // Update pointer TBD
             }
 
             // In any case, update the current node to point to the added one (currFrame)
             PMwrite(currPhysicalAddress, currFrame);
         }
-        
-        // This is after we found a page (leaf), so we should insert it into the map of pages <-> addresses:
-        PMrestore(currFrame, virtualAddressToRestore);
+        tempDepth++;
     }
+    // This is after we found a page (leaf), so we should insert it into the map of pages <-> addresses:
+    PMrestore(currFrame, virtualAddressToRestore);
     return currFrame * PAGE_SIZE + (virtualAddress % ((uint64_t) 1 << OFFSET_WIDTH));
 }
 
